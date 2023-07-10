@@ -8,6 +8,9 @@
 
 #include "skynet_malloc.h"
 
+#define MALLOC skynet_malloc
+#define FREE skynet_free
+
 #define DATA_TYPE int
 
 typedef struct {
@@ -25,7 +28,7 @@ typedef struct {
     uint32_t cap;
 
     uint32_t compareNum;    // 排序依据数量
-    uint8_t *compareSet;   // 排序依据，0：升序，1：降序
+    uint8_t *compareSet;    // 排序依据，0：升序，1：降序
     bool needSort;
 } Rank;
 
@@ -36,6 +39,8 @@ void RankInsertOrUpdateByUid(Rank *rank, uint32_t uid, const DATA_TYPE *data);
 void RankSort(Rank *rank);
 uint32_t RankLength(Rank *rank);
 int RankGetPosByUid(Rank *rank, uint32_t uid);
-int RankGetElementByUid(Rank *rank, uint32_t uid, uint32_t *rankPos, DATA_TYPE *data);
+// int RankGetElementByUid(Rank *rank, uint32_t uid, uint32_t *rankPos, DATA_TYPE *data);
+const Element * RankGetElementByUid(Rank *rank, uint32_t uid);
+const Element * RankGetElementByPos(Rank *rank, int pos);
 
 #endif

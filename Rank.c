@@ -4,11 +4,11 @@
 
 static Element *
 ElementNew(uint32_t uid, const DATA_TYPE *data, uint32_t dataNum) {
-    Element *elem = (Element *)skynet_malloc(sizeof(Element));
+    Element *elem = (Element *)MALLOC(sizeof(Element));
     memset(elem, 0, sizeof(Element));
     elem->uid = uid;
 
-    DATA_TYPE *temp = skynet_malloc(dataNum * sizeof(DATA_TYPE));
+    DATA_TYPE *temp = MALLOC(dataNum * sizeof(DATA_TYPE));
     memcpy(temp, data, dataNum * sizeof(DATA_TYPE));
     elem->data = temp;
     return elem;
@@ -16,29 +16,29 @@ ElementNew(uint32_t uid, const DATA_TYPE *data, uint32_t dataNum) {
 
 static void 
 ElementFree(Element *elem) {
-    skynet_free(elem->data);
-    skynet_free(elem);
+    FREE(elem->data);
+    FREE(elem);
 }
 
 Rank *
 RankNew(const uint8_t *compareSet, uint32_t compareNum) {
     uint32_t cap = INIT_LENGTH;
-    Rank *rank = (Rank *)skynet_malloc(sizeof(Rank));
+    Rank *rank = (Rank *)MALLOC(sizeof(Rank));
     memset(rank, 0, sizeof(Rank));
 
-    rank->arr = (Element **)skynet_malloc(cap * sizeof(Element *));
+    rank->arr = (Element **)MALLOC(cap * sizeof(Element *));
     memset(rank->arr, 0, cap * sizeof(Element *));
 
-    rank->arrTemp = (Element **)skynet_malloc(cap * sizeof(Element *));
+    rank->arrTemp = (Element **)MALLOC(cap * sizeof(Element *));
     memset(rank->arrTemp, 0, cap * sizeof(Element *));
 
-    rank->indexArr = (Element **)skynet_malloc(cap * sizeof(Element *));
+    rank->indexArr = (Element **)MALLOC(cap * sizeof(Element *));
     memset(rank->indexArr, 0, cap * sizeof(Element *));
 
     rank->arrLen = 0;
     rank->cap = cap;
 
-    rank->compareSet = (uint8_t *)skynet_malloc(compareNum * sizeof(uint8_t));
+    rank->compareSet = (uint8_t *)MALLOC(compareNum * sizeof(uint8_t));
     memcpy(rank->compareSet, compareSet, compareNum * sizeof(uint8_t));
     rank->compareNum = compareNum;
 
@@ -51,15 +51,15 @@ RankFree(Rank *rank) {
     if (rank == NULL) {
         return;
     }
-    skynet_free(rank->compareSet);
-    skynet_free(rank->indexArr);
-    skynet_free(rank->arrTemp);
+    FREE(rank->compareSet);
+    FREE(rank->indexArr);
+    FREE(rank->arrTemp);
     for (int i = 0; i < rank->arrLen; ++i) {
         ElementFree(rank->arr[i]);
         rank->arr[i] = NULL;
     }
-    skynet_free(rank->arr);
-    skynet_free(rank);
+    FREE(rank->arr);
+    FREE(rank);
 }
 
 static void
@@ -68,28 +68,28 @@ CheckRankResize(Rank *rank) {
         uint32_t newCap = rank->cap * 2;
         uint32_t elemPtrSize = sizeof(Element *);
 
-        Element **newArr = (Element **)skynet_malloc(newCap * elemPtrSize);
+        Element **newArr = (Element **)MALLOC(newCap * elemPtrSize);
         memcpy(newArr, rank->arr, rank->cap * elemPtrSize);
         memset(newArr + rank->cap, 0, (newCap - rank->cap) * elemPtrSize);
-        skynet_free(rank->arr);
+        FREE(rank->arr);
         rank->arr = newArr;
 
-        Element **newIndexArr = (Element **)skynet_malloc(newCap * elemPtrSize);
+        Element **newIndexArr = (Element **)MALLOC(newCap * elemPtrSize);
         memcpy(newIndexArr, rank->indexArr, rank->cap * elemPtrSize);
         memset(newIndexArr + rank->cap, 0, (newCap - rank->cap) * elemPtrSize);
-        skynet_free(rank->indexArr);
+        FREE(rank->indexArr);
         rank->indexArr = newIndexArr;
 
-        Element **newArrTemp = (Element **)skynet_malloc(newCap * elemPtrSize);
+        Element **newArrTemp = (Element **)MALLOC(newCap * elemPtrSize);
         memset(newArrTemp, 0, newCap * elemPtrSize);
-        skynet_free(rank->arrTemp);
+        FREE(rank->arrTemp);
         rank->arrTemp = newArrTemp;
 
         rank->cap = newCap;
     }
 }
 
-static void
+inline static void
 RankAddUidIndex(Rank *rank, uint32_t uid, Element *elem) {
     Element **indexArr = rank->indexArr;
     int i = rank->arrLen - 1;
@@ -147,7 +147,6 @@ RankUpdateElement(Rank *rank, Element *elem, const DATA_TYPE *newData){
     rank->needSort = true;
 }
 
-
 void
 RankInsertOrUpdateByUid(Rank *rank, uint32_t uid, const DATA_TYPE *data) {
     Element *elem = RankFindElementByUid(rank, uid);
@@ -193,15 +192,16 @@ Merge(Rank *rank, Element **tmp, int left, int mid, int right) {
     }
     for (i = left; i <= right; ++i) {
         arr[i] = tmp[i];
+        arr[i]->rankPos = i + 1;
     }
 }
 
+#include <stdio.h>
 static void 
 MergeSortIteration(Rank *rank) {
     uint32_t len = rank->arrLen;
     int size, left, mid, right;
     Element **tmp = rank->arrTemp;
-    
     for (size = 1; size < len; size *= 2) {
         for (left = 0; left < len - size; left = right + 1) {
             mid = left + size - 1;
@@ -210,10 +210,6 @@ MergeSortIteration(Rank *rank) {
         }
     }
     memset(rank->arrTemp, 0, rank->cap * sizeof(Element *));
-
-    for (int i = 0; i < rank->arrLen; ++i) {
-        rank->arr[i]->rankPos = i + 1;
-    }
 }
 
 void 
@@ -240,14 +236,17 @@ RankGetPosByUid(Rank *rank, uint32_t uid){
     return elem->rankPos;
 }
 
-int 
-RankGetElementByUid(Rank *rank, uint32_t uid, uint32_t *rankPos, DATA_TYPE *data){
+const Element * 
+RankGetElementByUid(Rank *rank, uint32_t uid){
     RankSort(rank);
-    Element *elem = RankFindElementByUid(rank, uid);
-    if (!elem) {
-        return -1;
+    return RankFindElementByUid(rank, uid);
+}
+
+const Element * 
+RankGetElementByPos(Rank *rank, int pos){
+    if (pos < 1 || pos > rank->arrLen) {
+        return NULL;
     }
-    *rankPos = elem->rankPos;
-    memcpy(data, elem->data, rank->compareNum * sizeof(DATA_TYPE));
-    return 0;
+    RankSort(rank);
+    return rank->arr[pos - 1];
 }

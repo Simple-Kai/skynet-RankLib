@@ -59,18 +59,32 @@ static int
 LuaRankGetElementByUid(lua_State *L) {
     Rank *rank = (Rank *)lua_touserdata(L, 1);
     uint32_t uid = luaL_checkinteger(L, 2);
-    uint32_t rankPos = 0;
-    DATA_TYPE data[rank->compareNum];
-
-    if (RankGetElementByUid(rank, uid, &rankPos, data) == -1){
+    const Element *elem = RankGetElementByUid(rank, uid);
+    if (!elem) {
         return 0;
     }
-
-    lua_pushinteger(L, rankPos);
-    lua_newtable(L);
+    lua_pushinteger(L, elem->rankPos);
+    lua_createtable(L, rank->compareNum, 0);
     for (int i = 0; i < rank->compareNum; ++i){
-        lua_pushinteger(L, data[i]);
-        lua_rawseti(L, -2, i+1);
+        lua_pushinteger(L, elem->data[i]);
+        lua_rawseti(L, -2, i + 1);
+    }
+    return 2;
+}
+
+static int
+LuaRankGetElementByPos(lua_State *L) {
+    Rank *rank = (Rank *)lua_touserdata(L, 1);
+    int pos = luaL_checkinteger(L, 2);
+    const Element *elem = RankGetElementByPos(rank, pos);
+    if (!elem) {
+        return 0;
+    }
+    lua_pushinteger(L, elem->uid);
+    lua_createtable(L, rank->compareNum, 0);
+    for (int i = 0; i < rank->compareNum; ++i){
+        lua_pushinteger(L, elem->data[i]);
+        lua_rawseti(L, -2, i + 1);
     }
     return 2;
 }
@@ -81,9 +95,12 @@ LuaRankForeachByRange(lua_State *L) {
     uint32_t left = luaL_checkinteger(L, 2);
     uint32_t right = luaL_checkinteger(L, 3);
     luaL_checktype(L, 4, LUA_TFUNCTION);
-
     if (left < 1 || left > right){
         luaL_error(L, "Rank range[%d,%d] error!", left, right);
+        return 0;
+    }
+
+    if (left > RankLength(rank)) {
         return 0;
     }
 
@@ -92,19 +109,22 @@ LuaRankForeachByRange(lua_State *L) {
     if (right > RankLength(rank)){
         right = RankLength(rank);
     }
-
+    
     int ret = 0;
     for (int i = left - 1; i < right; ++i) {
-        Element *element = rank->arr[i];
+        Element *elem = rank->arr[i];
         lua_pushvalue(L, 4);
-        lua_pushinteger(L, element->uid);
-        for (int j = 0; j < rank->compareNum; ++j) {
-            lua_pushinteger(L, element->data[j]);
+        lua_pushinteger(L, elem->uid);
+        lua_pushinteger(L, elem->rankPos);
+        lua_createtable(L, rank->compareNum, 0);
+        for (int i = 0; i < rank->compareNum; ++i){
+            lua_pushinteger(L, elem->data[i]);
+            lua_rawseti(L, -2, i + 1);
         }
-        if (lua_pcall(L, rank->compareNum+1, 1, 0) != LUA_OK) {
+        if (lua_pcall(L, 3, 1, 0) != LUA_OK) {
             luaL_error(L, lua_tostring(L, -1));
             lua_pop(L, 1);
-            continue;
+            break;
         }
         if (!lua_isboolean(L, -1)) {
             lua_pop(L, 1);
@@ -145,7 +165,8 @@ luaopen_RankCore(lua_State *L) {
         {"Sort", LuaRankSort},
         {"Length", LuaRankLength},
         {"QueryPos", LuaRankGetPosByUid},
-        {"QueryData", LuaRankGetElementByUid},
+        {"GetElementByUid", LuaRankGetElementByUid},
+        {"GetElementByPos", LuaRankGetElementByPos},
         {"ForeachByRange", LuaRankForeachByRange},
         {"__gc", LuaRankFree},
         {"__close", LuaRankFree},
